@@ -18,13 +18,7 @@ export declare class CommentController {
     } & {
         id: string;
     })[]>;
-    GetComment(user: HydratedUser, commentId: string): Promise<(import("mongoose").Document<unknown, {}, import("../../models/comment.model").Comment, {}, import("mongoose").DefaultSchemaOptions> & import("../../models/comment.model").Comment & {
-        _id: import("mongoose").Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
+    GetComment(user: HydratedUser, commentId: string): Promise<import("../../models/comment.model").Comment>;
     UpdateComment(user: HydratedUser, commentId: string, body: UpdateCommentDto): Promise<(import("mongoose").Document<unknown, {}, import("../../models/comment.model").Comment, {}, import("mongoose").DefaultSchemaOptions> & import("../../models/comment.model").Comment & {
         _id: import("mongoose").Types.ObjectId;
     } & {

@@ -1,14 +1,17 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { UserRepo } from 'src/Repo/user.repo';
 import { CreateCommentDto, UpdateCommentDto } from './comment.dto';
 import { PostRepo } from 'src/Repo/post.repo';
-import { PrivacyEnum } from 'src/common/enums/post.enum';
 import { CommentRepo } from 'src/Repo/comment.repo';
+import { PostService } from '../post/post.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Types } from 'mongoose';
+import { PostCommentedEvent } from 'src/common/events/post-commented.event';
+import { Comment } from 'src/models/comment.model';
 
 @Injectable()
 export class CommentService {
@@ -16,6 +19,8 @@ export class CommentService {
     private readonly userRepo: UserRepo,
     private readonly postRepo: PostRepo,
     private readonly CommentRepo: CommentRepo,
+    private readonly postService: PostService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
   async createComment(postId: string, userId: string, body: CreateCommentDto) {
     if (!(await this.userRepo.findById({ id: userId }))) {
@@ -30,15 +35,16 @@ export class CommentService {
     if (!post) {
       throw new NotFoundException('post does not exist');
     }
-    if (post.privacy !== PrivacyEnum.PUBLIC) {
-      throw new ForbiddenException('can not create comment');
-    }
+    await this.postService.assertCanViewPost(post, userId);
+
+    let parentComment: Comment | null = null;
     if (body.parentId) {
-      await this.CommentRepo.findOne({
+      parentComment = await this.CommentRepo.findOne({
         filter: { _id: body.parentId, postId, deletedAt: null },
       });
-    } else {
-      throw new BadRequestException('can not find parent comment');
+      if (!parentComment) {
+        throw new BadRequestException('can not find parent comment');
+      }
     }
     const comment = await this.CommentRepo.create({
       data: {
@@ -48,6 +54,34 @@ export class CommentService {
         parentId: body.parentId ?? null,
       },
     });
+    const actorId = new Types.ObjectId(userId);
+    const postObjectId = new Types.ObjectId(postId);
+    if (post.createdBy.toString() !== userId.toString()) {
+      this.eventEmitter.emit(
+        'post.commented',
+        new PostCommentedEvent(
+          actorId,
+          postObjectId,
+          comment._id,
+          post.createdBy,
+        ),
+      );
+    }
+    if (
+      parentComment &&
+      parentComment.createdBy.toString() !== userId.toString() &&
+      parentComment.createdBy.toString() !== post.createdBy.toString()
+    ) {
+      this.eventEmitter.emit(
+        'post.commented',
+        new PostCommentedEvent(
+          actorId,
+          postObjectId,
+          comment._id,
+          parentComment.createdBy,
+        ),
+      );
+    }
     return comment;
   }
   async getPostComments(postId: string, userId: string) {
@@ -63,9 +97,7 @@ export class CommentService {
     if (!post) {
       throw new NotFoundException('post does not exist');
     }
-    if (post.privacy !== PrivacyEnum.PUBLIC) {
-      throw new ForbiddenException('can not create comment');
-    }
+    await this.postService.assertCanViewPost(post, userId);
     const comment = await this.CommentRepo.findAll({
       filter: { postId, deletedAt: null },
       projection: '-deletedAt',
@@ -73,9 +105,7 @@ export class CommentService {
         populate: [
           {
             path: 'createdBy',
-          },
-          {
-            path: 'userName profilePicture',
+            select: 'userName profilePicture',
           },
         ],
       },
@@ -86,19 +116,30 @@ export class CommentService {
     if (!(await this.userRepo.findById({ id: userId }))) {
       throw new NotFoundException('user does not exist');
     }
-    const comment = await this.CommentRepo.findAll({
+    const comment = await this.CommentRepo.findOne({
       filter: { _id: commentId, deletedAt: null },
       options: {
         populate: [
           {
             path: 'createdBy',
-          },
-          {
-            path: 'userName profilePicture',
+            select: 'userName profilePicture',
           },
         ],
       },
     });
+    if (!comment) {
+      throw new NotFoundException('comment does not exist');
+    }
+    const post = await this.postRepo.findOne({
+      filter: {
+        _id: comment.postId,
+        deletedAt: null,
+      },
+    });
+    if (!post) {
+      throw new NotFoundException('post does not exist');
+    }
+    await this.postService.assertCanViewPost(post, userId);
     return comment;
   }
   async updateComment(

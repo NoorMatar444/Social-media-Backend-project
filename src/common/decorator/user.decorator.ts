@@ -12,6 +12,6 @@ export const CurrentUser = createParamDecorator(
     if (!user) {
       throw new UnauthorizedException('user not found on request');
     }
-    return data ? user[data] : user;
+    return data ? user[data] : user; // return one field or the whole user object =>  @currentUser('email) returns user.email, @currentUser() returns the whole user object
   },
 );

@@ -23,4 +23,9 @@ export declare class RedisService {
         userId: string;
         tokenId: string;
     }): string;
+    blacklistToken({ userId, tokenId, seconds, }: {
+        userId: string;
+        tokenId: string;
+        seconds?: number;
+    }): Promise<void>;
 }

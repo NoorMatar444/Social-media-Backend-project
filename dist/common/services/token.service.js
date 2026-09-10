@@ -167,11 +167,6 @@ let TokenService = class TokenService {
             verifiedToken,
         };
     }
-    async blacklistToken({ userId, tokenId, seconds = 365 * 24 * 60 * 60, }) {
-        const key = this.RedisService.getBlackListTokenKey({ userId, tokenId });
-        await this.RedisService.setRedisKey({ key, value: '1' });
-        await this.RedisService.expireRedisKey({ key, seconds });
-    }
 };
 exports.TokenService = TokenService;
 exports.TokenService = TokenService = __decorate([

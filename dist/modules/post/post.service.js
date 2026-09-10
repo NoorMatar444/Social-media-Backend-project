@@ -17,16 +17,22 @@ const post_enum_1 = require("../../common/enums/post.enum");
 const s3Bucket_service_1 = require("../../common/services/s3Bucket.service");
 const multer_enum_1 = require("../../common/enums/multer.enum");
 const follow_service_1 = require("../follow/follow.service");
+const event_emitter_1 = require("@nestjs/event-emitter");
+const mongoose_1 = require("mongoose");
+const post_liked_event_1 = require("../../common/events/post-liked.event");
+const user_mentioned_event_1 = require("../../common/events/user-mentioned.event");
 let PostService = class PostService {
     postRepo;
     userRepo;
     S3BucketService;
     followService;
-    constructor(postRepo, userRepo, S3BucketService, followService) {
+    eventEmitter;
+    constructor(postRepo, userRepo, S3BucketService, followService, eventEmitter) {
         this.postRepo = postRepo;
         this.userRepo = userRepo;
         this.S3BucketService = S3BucketService;
         this.followService = followService;
+        this.eventEmitter = eventEmitter;
     }
     async assertCanViewPost(post, viewerId) {
         const isOwner = post.createdBy.toString() === viewerId.toString();
@@ -49,6 +55,15 @@ let PostService = class PostService {
         if (!hasContent && !files?.length) {
             throw new common_1.BadRequestException('Post must have content or at least one attachment');
         }
+        const uniqueTags = [...new Set(body.tags ?? [])];
+        if (uniqueTags.length) {
+            const taggedUsers = await this.userRepo.findAll({
+                filter: { _id: { $in: uniqueTags } },
+            });
+            if (taggedUsers.length !== uniqueTags.length) {
+                throw new common_1.BadRequestException('one or more tagged users do not exist');
+            }
+        }
         const keys = files?.length
             ? (await this.S3BucketService.uploadFiles({
                 files,
@@ -59,10 +74,17 @@ let PostService = class PostService {
         const post = await this.postRepo.create({
             data: {
                 ...body,
+                tags: uniqueTags,
                 createdBy: user._id,
                 attachments: keys,
             },
         });
+        for (const tagId of uniqueTags) {
+            if (tagId.toString() === user._id.toString()) {
+                continue;
+            }
+            this.eventEmitter.emit('user.mentioned', new user_mentioned_event_1.UserMentionedEvent(user._id, post._id, new mongoose_1.Types.ObjectId(tagId)));
+        }
         return post;
     }
     async getPost(postId, userId) {
@@ -144,6 +166,7 @@ let PostService = class PostService {
             throw new common_1.NotFoundException('post does not exist');
         }
         await this.assertCanViewPost(post, userId);
+        const alreadyLiked = post.likes.some((likeId) => likeId.toString() === userId.toString());
         const likes = await this.postRepo.findOneAndUpdate({
             filter: { _id: postId, deletedAt: null },
             update: { $addToSet: { likes: userId } },
@@ -151,6 +174,9 @@ let PostService = class PostService {
         });
         if (!likes) {
             throw new common_1.NotFoundException('post does not exist');
+        }
+        if (!alreadyLiked && post.createdBy.toString() !== userId.toString()) {
+            this.eventEmitter.emit('post.liked', new post_liked_event_1.PostLikedEvent(new mongoose_1.Types.ObjectId(userId), new mongoose_1.Types.ObjectId(postId), post.createdBy));
         }
         return likes;
     }
@@ -261,6 +287,7 @@ exports.PostService = PostService = __decorate([
     __metadata("design:paramtypes", [post_repo_1.PostRepo,
         user_repo_1.UserRepo,
         s3Bucket_service_1.S3BucketService,
-        follow_service_1.FollowService])
+        follow_service_1.FollowService,
+        event_emitter_1.EventEmitter2])
 ], PostService);
 //# sourceMappingURL=post.service.js.map

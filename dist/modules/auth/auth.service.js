@@ -209,7 +209,7 @@ let AuthService = class AuthService {
         if (!sub || !jti) {
             throw new common_1.UnauthorizedException('token not valid');
         }
-        await this.TokenService.blacklistToken({
+        await this.RedisService.blacklistToken({
             userId: sub,
             tokenId: jti,
         });

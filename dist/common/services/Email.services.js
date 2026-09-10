@@ -55,9 +55,7 @@ let EmailService = class EmailService {
             service: 'gmail',
             auth: {
                 user: this.configService.get('GMAIL_USER'),
-                pass: this.configService
-                    .get('GMAIL_APP_PASSWORD')
-                    ?.replace(/\s/g, ''),
+                pass: this.configService.get('GMAIL_APP_PASSWORD'),
             },
         });
     }

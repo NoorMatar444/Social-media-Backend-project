@@ -13,12 +13,17 @@ exports.FollowService = void 0;
 const common_1 = require("@nestjs/common");
 const follow_repo_1 = require("../../Repo/follow.repo");
 const user_repo_1 = require("../../Repo/user.repo");
+const event_emitter_1 = require("@nestjs/event-emitter");
+const mongoose_1 = require("mongoose");
+const user_followed_event_1 = require("../../common/events/user-followed.event");
 let FollowService = class FollowService {
     userRepo;
     followRepo;
-    constructor(userRepo, followRepo) {
+    eventEmitter;
+    constructor(userRepo, followRepo, eventEmitter) {
         this.userRepo = userRepo;
         this.followRepo = followRepo;
+        this.eventEmitter = eventEmitter;
     }
     async followUser(followerId, followingId) {
         if (followerId.toString() == followingId.toString()) {
@@ -44,6 +49,7 @@ let FollowService = class FollowService {
                 followingId,
             },
         });
+        this.eventEmitter.emit('user.followed', new user_followed_event_1.UserFollowedEvent(new mongoose_1.Types.ObjectId(followerId), new mongoose_1.Types.ObjectId(followingId)));
         return createFollow;
     }
     async unfollowUser(followerId, followingId) {
@@ -124,6 +130,7 @@ exports.FollowService = FollowService;
 exports.FollowService = FollowService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [user_repo_1.UserRepo,
-        follow_repo_1.FollowRepo])
+        follow_repo_1.FollowRepo,
+        event_emitter_1.EventEmitter2])
 ], FollowService);
 //# sourceMappingURL=follow.service.js.map

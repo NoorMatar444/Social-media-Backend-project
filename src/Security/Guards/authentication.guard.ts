@@ -16,7 +16,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    let request!: IAuthRequest;
+    let request!: IAuthRequest; // we use IAuthRequest because Express Request has no user or tokenPayload
     let authorization: string | undefined;
     request = context.switchToHttp().getRequest();
     authorization = request.headers.authorization;

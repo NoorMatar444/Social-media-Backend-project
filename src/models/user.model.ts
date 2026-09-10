@@ -34,7 +34,7 @@ export class User {
   @Prop({
     type: String,
     unique: true,
-    sparse: true, // password users can omit this field
+    sparse: true, // unique only when googleId exists
     required: function (this: User) {
       return this.provider === ProviderEnum.GOOGLE;
     },

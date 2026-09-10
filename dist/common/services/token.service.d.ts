@@ -6,14 +6,7 @@ import { UserRepo } from '../../Repo/user.repo';
 import { RedisService } from './Redis/redis.service';
 import { TokenEnum } from '../enums/token.enum';
 import { RoleEnum } from '../enums/user.enum';
-interface ITokenPayload {
-    sub: string;
-    role: RoleEnum;
-    aud?: string | string[];
-    iat?: number;
-    exp?: number;
-    jti?: string;
-}
+import { ITokenPayload } from '../interfaces/token.interface';
 export declare class TokenService {
     private readonly ConfigService;
     private readonly UserRepo;
@@ -51,10 +44,4 @@ export declare class TokenService {
         };
         verifiedToken: ITokenPayload;
     }>;
-    blacklistToken({ userId, tokenId, seconds, }: {
-        userId: string;
-        tokenId: string;
-        seconds?: number;
-    }): Promise<void>;
 }
-export {};

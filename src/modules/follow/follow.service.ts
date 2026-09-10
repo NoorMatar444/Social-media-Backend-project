@@ -6,12 +6,16 @@ import {
 } from '@nestjs/common';
 import { FollowRepo } from 'src/Repo/follow.repo';
 import { UserRepo } from 'src/Repo/user.repo';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Types } from 'mongoose';
+import { UserFollowedEvent } from 'src/common/events/user-followed.event';
 
 @Injectable()
 export class FollowService {
   constructor(
     private readonly userRepo: UserRepo,
     private readonly followRepo: FollowRepo,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
   async followUser(followerId: string, followingId: string) {
     if (followerId.toString() == followingId.toString()) {
@@ -37,6 +41,13 @@ export class FollowService {
         followingId,
       },
     });
+    this.eventEmitter.emit(
+      'user.followed',
+      new UserFollowedEvent(
+        new Types.ObjectId(followerId),
+        new Types.ObjectId(followingId),
+      ),
+    );
     return createFollow;
   }
   async unfollowUser(followerId: string, followingId: string) {

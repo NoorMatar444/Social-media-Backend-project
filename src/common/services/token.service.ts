@@ -8,15 +8,7 @@ import { UserRepo } from '../../Repo/user.repo';
 import { RedisService } from './Redis/redis.service';
 import { TokenEnum } from '../enums/token.enum';
 import { RoleEnum } from '../enums/user.enum';
-
-interface ITokenPayload {
-  sub: string;
-  role: RoleEnum;
-  aud?: string | string[];
-  iat?: number;
-  exp?: number;
-  jti?: string;
-}
+import { ITokenPayload } from '../interfaces/token.interface';
 
 @Injectable()
 export class TokenService {
@@ -90,7 +82,7 @@ export class TokenService {
       payload: { sub: user._id.toString(), role: user.role },
       signature: access_secret,
       options: {
-        audience: [TokenEnum.ACCESS, String(user.role)],
+        audience: [TokenEnum.ACCESS, String(user.role)], // audience accepts string or array of strings only
         expiresIn: '1d',
         jwtid: generateJwtid,
       },
@@ -181,19 +173,5 @@ export class TokenService {
       user,
       verifiedToken,
     };
-  }
-
-  async blacklistToken({
-    userId,
-    tokenId,
-    seconds = 365 * 24 * 60 * 60,
-  }: {
-    userId: string;
-    tokenId: string;
-    seconds?: number;
-  }) {
-    const key = this.RedisService.getBlackListTokenKey({ userId, tokenId });
-    await this.RedisService.setRedisKey({ key, value: '1' });
-    await this.RedisService.expireRedisKey({ key, seconds });
   }
 }

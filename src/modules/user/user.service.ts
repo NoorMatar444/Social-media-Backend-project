@@ -250,6 +250,8 @@ export class UserService {
 
     return { message: 'account deactivated successfully' };
   }
+  // Used on signup / profile update: throw if userName is taken.
+  // excludeUserId skips the current user so they can keep their own name.
   async ensureUserNameAvailable(userName: string, excludeUserId?: string) {
     const existing = await this.UserRepo.findOne({
       filter: excludeUserId
@@ -261,6 +263,9 @@ export class UserService {
     }
   }
 
+  // Turns a Google display name into a valid userName:
+  // trim, spaces -> _, drop other symbols, max 30 chars.
+  // If the result is under 3 chars, fall back to user_<timestamp>.
   private toUserName(raw: string): string {
     const cleaned = raw
       .trim()
@@ -272,6 +277,8 @@ export class UserService {
       : `user_${Date.now().toString().slice(-6)}`;
   }
 
+  // Used on first-time Google signup: sanitize the name, then append _1, _2, ...
+  // until it is free. After 50 collisions, use user_<timestamp>.
   async uniqueUserName(raw: string): Promise<string> {
     const base = this.toUserName(raw);
     let candidate = base;

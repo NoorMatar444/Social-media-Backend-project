@@ -12,6 +12,8 @@ import { FollowModule } from './modules/follow/follow.module';
 import { SecurityModule } from './Security/security.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CustomMulterModule } from './common/multer/multer.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationModule } from './modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -20,6 +22,7 @@ import { CustomMulterModule } from './common/multer/multer.module';
       envFilePath:
         process.env.NODE_ENV === 'docker' ? '.env.docker' : '.env.dev',
     }),
+    EventEmitterModule.forRoot(),
 
     MongooseModule.forRootAsync({
       inject: [ConfigService],
@@ -43,6 +46,7 @@ import { CustomMulterModule } from './common/multer/multer.module';
     SecurityModule,
     AuthModule,
     CustomMulterModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

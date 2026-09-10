@@ -13,16 +13,23 @@ exports.CommentService = void 0;
 const common_1 = require("@nestjs/common");
 const user_repo_1 = require("../../Repo/user.repo");
 const post_repo_1 = require("../../Repo/post.repo");
-const post_enum_1 = require("../../common/enums/post.enum");
 const comment_repo_1 = require("../../Repo/comment.repo");
+const post_service_1 = require("../post/post.service");
+const event_emitter_1 = require("@nestjs/event-emitter");
+const mongoose_1 = require("mongoose");
+const post_commented_event_1 = require("../../common/events/post-commented.event");
 let CommentService = class CommentService {
     userRepo;
     postRepo;
     CommentRepo;
-    constructor(userRepo, postRepo, CommentRepo) {
+    postService;
+    eventEmitter;
+    constructor(userRepo, postRepo, CommentRepo, postService, eventEmitter) {
         this.userRepo = userRepo;
         this.postRepo = postRepo;
         this.CommentRepo = CommentRepo;
+        this.postService = postService;
+        this.eventEmitter = eventEmitter;
     }
     async createComment(postId, userId, body) {
         if (!(await this.userRepo.findById({ id: userId }))) {
@@ -37,16 +44,15 @@ let CommentService = class CommentService {
         if (!post) {
             throw new common_1.NotFoundException('post does not exist');
         }
-        if (post.privacy !== post_enum_1.PrivacyEnum.PUBLIC) {
-            throw new common_1.ForbiddenException('can not create comment');
-        }
+        await this.postService.assertCanViewPost(post, userId);
+        let parentComment = null;
         if (body.parentId) {
-            await this.CommentRepo.findOne({
+            parentComment = await this.CommentRepo.findOne({
                 filter: { _id: body.parentId, postId, deletedAt: null },
             });
-        }
-        else {
-            throw new common_1.BadRequestException('can not find parent comment');
+            if (!parentComment) {
+                throw new common_1.BadRequestException('can not find parent comment');
+            }
         }
         const comment = await this.CommentRepo.create({
             data: {
@@ -56,6 +62,16 @@ let CommentService = class CommentService {
                 parentId: body.parentId ?? null,
             },
         });
+        const actorId = new mongoose_1.Types.ObjectId(userId);
+        const postObjectId = new mongoose_1.Types.ObjectId(postId);
+        if (post.createdBy.toString() !== userId.toString()) {
+            this.eventEmitter.emit('post.commented', new post_commented_event_1.PostCommentedEvent(actorId, postObjectId, comment._id, post.createdBy));
+        }
+        if (parentComment &&
+            parentComment.createdBy.toString() !== userId.toString() &&
+            parentComment.createdBy.toString() !== post.createdBy.toString()) {
+            this.eventEmitter.emit('post.commented', new post_commented_event_1.PostCommentedEvent(actorId, postObjectId, comment._id, parentComment.createdBy));
+        }
         return comment;
     }
     async getPostComments(postId, userId) {
@@ -71,9 +87,7 @@ let CommentService = class CommentService {
         if (!post) {
             throw new common_1.NotFoundException('post does not exist');
         }
-        if (post.privacy !== post_enum_1.PrivacyEnum.PUBLIC) {
-            throw new common_1.ForbiddenException('can not create comment');
-        }
+        await this.postService.assertCanViewPost(post, userId);
         const comment = await this.CommentRepo.findAll({
             filter: { postId, deletedAt: null },
             projection: '-deletedAt',
@@ -81,9 +95,7 @@ let CommentService = class CommentService {
                 populate: [
                     {
                         path: 'createdBy',
-                    },
-                    {
-                        path: 'userName profilePicture',
+                        select: 'userName profilePicture',
                     },
                 ],
             },
@@ -94,19 +106,30 @@ let CommentService = class CommentService {
         if (!(await this.userRepo.findById({ id: userId }))) {
             throw new common_1.NotFoundException('user does not exist');
         }
-        const comment = await this.CommentRepo.findAll({
+        const comment = await this.CommentRepo.findOne({
             filter: { _id: commentId, deletedAt: null },
             options: {
                 populate: [
                     {
                         path: 'createdBy',
-                    },
-                    {
-                        path: 'userName profilePicture',
+                        select: 'userName profilePicture',
                     },
                 ],
             },
         });
+        if (!comment) {
+            throw new common_1.NotFoundException('comment does not exist');
+        }
+        const post = await this.postRepo.findOne({
+            filter: {
+                _id: comment.postId,
+                deletedAt: null,
+            },
+        });
+        if (!post) {
+            throw new common_1.NotFoundException('post does not exist');
+        }
+        await this.postService.assertCanViewPost(post, userId);
         return comment;
     }
     async updateComment(commentId, userId, body) {
@@ -129,6 +152,8 @@ exports.CommentService = CommentService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [user_repo_1.UserRepo,
         post_repo_1.PostRepo,
-        comment_repo_1.CommentRepo])
+        comment_repo_1.CommentRepo,
+        post_service_1.PostService,
+        event_emitter_1.EventEmitter2])
 ], CommentService);
 //# sourceMappingURL=comment.sevice.js.map

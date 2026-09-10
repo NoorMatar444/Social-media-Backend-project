@@ -20,6 +20,8 @@ const follow_module_1 = require("./modules/follow/follow.module");
 const security_module_1 = require("./Security/security.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const multer_module_1 = require("./common/multer/multer.module");
+const event_emitter_1 = require("@nestjs/event-emitter");
+const notification_module_1 = require("./modules/notification/notification.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -30,6 +32,7 @@ exports.AppModule = AppModule = __decorate([
                 isGlobal: true,
                 envFilePath: process.env.NODE_ENV === 'docker' ? '.env.docker' : '.env.dev',
             }),
+            event_emitter_1.EventEmitterModule.forRoot(),
             mongoose_1.MongooseModule.forRootAsync({
                 inject: [config_1.ConfigService],
                 useFactory: (config) => ({
@@ -52,6 +55,7 @@ exports.AppModule = AppModule = __decorate([
             security_module_1.SecurityModule,
             auth_module_1.AuthModule,
             multer_module_1.CustomMulterModule,
+            notification_module_1.NotificationModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

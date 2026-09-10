@@ -13,6 +13,10 @@ import { PrivacyEnum } from 'src/common/enums/post.enum';
 import { S3BucketService } from '../../common/services/s3Bucket.service';
 import { StorageApproachEnum } from 'src/common/enums/multer.enum';
 import { FollowService } from '../follow/follow.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Types } from 'mongoose';
+import { PostLikedEvent } from 'src/common/events/post-liked.event';
+import { UserMentionedEvent } from 'src/common/events/user-mentioned.event';
 
 @Injectable()
 export class PostService {
@@ -21,6 +25,7 @@ export class PostService {
     private readonly userRepo: UserRepo,
     private readonly S3BucketService: S3BucketService,
     private readonly followService: FollowService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
   async assertCanViewPost(post: Post, viewerId: string) {
     const isOwner = post.createdBy.toString() === viewerId.toString();
@@ -53,6 +58,15 @@ export class PostService {
         'Post must have content or at least one attachment',
       );
     }
+    const uniqueTags = [...new Set(body.tags ?? [])];
+    if (uniqueTags.length) {
+      const taggedUsers = await this.userRepo.findAll({
+        filter: { _id: { $in: uniqueTags } },
+      });
+      if (taggedUsers.length !== uniqueTags.length) {
+        throw new BadRequestException('one or more tagged users do not exist');
+      }
+    }
     const keys = files?.length
       ? (
           await this.S3BucketService.uploadFiles({
@@ -65,10 +79,20 @@ export class PostService {
     const post = await this.postRepo.create({
       data: {
         ...body,
+        tags: uniqueTags,
         createdBy: user._id,
         attachments: keys,
       },
     });
+    for (const tagId of uniqueTags) {
+      if (tagId.toString() === user._id.toString()) {
+        continue;
+      }
+      this.eventEmitter.emit(
+        'user.mentioned',
+        new UserMentionedEvent(user._id, post._id, new Types.ObjectId(tagId)),
+      );
+    }
     return post;
   }
   async getPost(postId: string, userId: string) {
@@ -153,6 +177,9 @@ export class PostService {
       throw new NotFoundException('post does not exist');
     }
     await this.assertCanViewPost(post, userId);
+    const alreadyLiked = post.likes.some(
+      (likeId) => likeId.toString() === userId.toString(),
+    );
     const likes = await this.postRepo.findOneAndUpdate({
       filter: { _id: postId, deletedAt: null },
       update: { $addToSet: { likes: userId } },
@@ -160,6 +187,16 @@ export class PostService {
     });
     if (!likes) {
       throw new NotFoundException('post does not exist');
+    }
+    if (!alreadyLiked && post.createdBy.toString() !== userId.toString()) {
+      this.eventEmitter.emit(
+        'post.liked',
+        new PostLikedEvent(
+          new Types.ObjectId(userId),
+          new Types.ObjectId(postId),
+          post.createdBy,
+        ),
+      );
     }
     return likes;
   }
